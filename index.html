@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BounceQuiz AI - Fisika X</title>
+    <!-- Tailwind CSS untuk Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js untuk Efek Suara -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- FontAwesome untuk Ikon -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fdf4; /* Background hijau muda */
+            overflow: hidden; /* Mencegah scroll agar game fullscreen */
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #game-container {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #ffffff 0%, #e0f2fe 100%);
+            border-radius: 1rem;
+            margin: 0.5rem;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+            overflow: hidden;
+            border: 4px solid #bae6fd;
+        }
+
+        .ball {
+            position: absolute;
+            top: 0; left: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: transform 0.1s linear, filter 0.2s, box-shadow 0.2s;
+            user-select: none;
+        }
+        
+        .ball:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+        }
+
+        /* Warna Status Bola */
+        .status-unanswered { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+        .status-correct { background: linear-gradient(135deg, #10b981, #059669); border: 2px solid #047857; }
+        .status-incorrect { background: linear-gradient(135deg, #ef4444, #dc2626); border: 2px solid #b91c1c; }
+        .status-partial { background: linear-gradient(135deg, #f59e0b, #d97706); border: 2px solid #b45309; }
+        
+        /* Animasi Modal */
+        .modal-enter {
+            animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        @keyframes modalFadeIn {
+            0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* Scrollbar kustom untuk Panel Guru */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3 shadow-lg flex justify-between items-center z-20">
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-volleyball bounce"></i> BounceQuiz AI
+            </h1>
+            <p class="text-sm text-blue-100 mt-1 font-medium">
+                SMA Kelas X | Fisika - Pengukuran | Mode: Formatif & Sumatif | 30 Siswa
+            </p>
+            <!-- Nama Pengembang dengan ukuran teks lebih kecil -->
+            <p class="text-xs text-indigo-200 mt-1 italic font-light">
+                Pengembang: Arkam Umar | Fasilitator Digitalisasi
+            </p>
+        </div>
+        <button id="toggle-teacher-panel" class="bg-white/20 hover:bg-white/30 transition px-4 py-2 rounded-lg font-semibold flex items-center gap-2 border border-white/30 backdrop-blur-sm">
+            <i class="fa-solid fa-chalkboard-user"></i> Panel Guru
+        </button>
+    </header>
+
+    <!-- Panel Statistik Atas -->
+    <div class="bg-white border-b shadow-sm p-3 z-20 flex flex-wrap gap-4 justify-center text-sm md:text-base">
+        <div class="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full border border-blue-200">
+            <i class="fa-solid fa-list-check text-blue-500"></i>
+            <span class="font-semibold text-slate-600">Progres:</span>
+            <span id="stat-progress" class="font-bold text-blue-700">0 / 30 (0%)</span>
+        </div>
+        <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full border border-green-200">
+            <i class="fa-solid fa-check text-green-500"></i>
+            <span class="font-semibold text-slate-600">Benar:</span>
+            <span id="stat-correct" class="font-bold text-green-700">0</span>
+        </div>
+        <div class="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-full border border-red-200">
+            <i class="fa-solid fa-xmark text-red-500"></i>
+            <span class="font-semibold text-slate-600">Salah:</span>
+            <span id="stat-incorrect" class="font-bold text-red-700">0</span>
+        </div>
+        <div class="flex items-center gap-2 bg-purple-50 px-4 py-2 rounded-full border border-purple-200">
+            <i class="fa-solid fa-star text-purple-500"></i>
+            <span class="font-semibold text-slate-600">Total Nilai:</span>
+            <span id="stat-score" class="font-bold text-purple-700">0</span>
+        </div>
+    </div>
+
+    <main class="flex-grow flex w-full relative h-full">
+        <!-- Area Animasi Bola -->
+        <div id="game-container" class="flex-grow">
+            <!-- Bola-bola akan dirender ke sini oleh JS -->
+        </div>
+
+        <!-- Panel Guru (Disembunyikan secara default) -->
+        <aside id="teacher-panel" class="hidden absolute top-0 right-0 h-full w-80 bg-white shadow-[-5px_0_15px_rgba(0,0,0,0.1)] border-l z-10 flex flex-col transition-transform duration-300 transform translate-x-full">
+            <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
+                <h2 class="font-bold text-lg text-slate-700"><i class="fa-solid fa-clipboard-check mr-2"></i>Status Kelas</h2>
+                <button id="close-teacher-panel" class="text-slate-400 hover:text-red-500 transition">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-4 flex-grow overflow-y-auto custom-scrollbar bg-slate-50">
+                <div class="grid grid-cols-5 gap-2" id="teacher-grid">
+                    <!-- Indikator soal terisi otomatis oleh JS -->
+                </div>
+                <div class="mt-6 border-t pt-4">
+                    <h3 class="font-semibold text-sm mb-2 text-slate-600">Legenda:</h3>
+                    <ul class="text-xs space-y-2">
+                        <li class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Belum Dikerjakan</li>
+                        <li class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-500"></span> Benar (100 pt)</li>
+                        <li class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Sebagian Benar (50 pt)</li>
+                        <li class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500"></span> Salah (0 pt)</li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Kontrol Game Melayang (Bawah Tengah) -->
+    <div class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-2xl border border-slate-200 flex items-center gap-4 transition-all hover:scale-105">
+        <button id="btn-toggle-play" class="text-slate-600 hover:text-blue-600 transition text-xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-blue-50" title="Play/Jeda">
+            <i class="fa-solid fa-pause"></i>
+        </button>
+        <button id="btn-shuffle" class="text-slate-600 hover:text-purple-600 transition text-xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-purple-50" title="Acak Bola">
+            <i class="fa-solid fa-shuffle"></i>
+        </button>
+        <div class="w-px h-8 bg-slate-300"></div>
+        <button id="btn-toggle-sound" class="text-slate-400 hover:text-green-600 transition text-xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-green-50" title="Suara (Mati/Nyala)">
+            <i class="fa-solid fa-volume-xmark"></i>
+        </button>
+        <div class="w-px h-8 bg-slate-300"></div>
+        <button id="btn-fullscreen" class="text-slate-600 hover:text-indigo-600 transition text-xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-indigo-50" title="Layar Penuh">
+            <i class="fa-solid fa-expand"></i>
+        </button>
+        <button id="btn-restart-anytime" class="text-slate-600 hover:text-red-600 transition text-xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50" title="Mulai Ulang Permainan">
+            <i class="fa-solid fa-rotate-right"></i>
+        </button>
+    </div>
+
+    <!-- Modal Konfirmasi Mulai Ulang -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm text-center overflow-hidden p-6">
+            <i class="fa-solid fa-triangle-exclamation text-5xl text-amber-500 mb-4"></i>
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Mulai Ulang?</h3>
+            <p class="text-slate-600 text-sm mb-6">Progres permainan Anda saat ini akan hilang. Lanjutkan?</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeModal('confirm-modal')" class="px-5 py-2.5 rounded-xl font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition w-full">Batal</button>
+                <button id="btn-confirm-restart" class="px-5 py-2.5 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition w-full shadow-md">Ya, Ulangi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Pertanyaan -->
+    <div id="question-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+            
+            <!-- Header Modal -->
+            <div class="p-5 border-b flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                <div class="flex items-center gap-3">
+                    <div id="modal-ball-number" class="w-12 h-12 rounded-full bg-blue-600 text-white font-bold text-xl flex items-center justify-center shadow-md">
+                        1
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-lg text-slate-800">Pertanyaan Soal</h2>
+                        <span id="modal-type-badge" class="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-md">Multiple Choice</span>
+                    </div>
+                </div>
+                <button onclick="closeModal('question-modal')" class="text-slate-400 hover:text-red-500 bg-white w-8 h-8 rounded-full shadow flex justify-center items-center">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Konten Pertanyaan -->
+            <div class="p-6 flex-grow">
+                <p id="modal-question-text" class="text-lg md:text-xl font-medium text-slate-800 mb-6 leading-relaxed"></p>
+
+                <!-- Container Pilihan Ganda -->
+                <div id="mc-container" class="hidden flex-col gap-3">
+                    <!-- Opsi dihasilkan otomatis oleh JS -->
+                </div>
+
+                <!-- Container Jawaban Lisan (Oral Answer) -->
+                <div id="oral-container" class="hidden flex-col gap-4">
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
+                        <label class="block text-sm font-semibold text-blue-800 mb-2"><i class="fa-solid fa-microphone-lines mr-1"></i> Area Respons Siswa / Catatan:</label>
+                        <textarea id="oral-student-notes" rows="3" class="w-full p-3 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Siswa memberikan jawaban lisan. Catatan singkat dapat ditulis di sini..."></textarea>
+                    </div>
+                    
+                    <button id="btn-open-teacher-grading" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition shadow-md flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-lock-open"></i> Buka Panel Penilaian Guru
+                    </button>
+
+                    <!-- Area Penilaian Guru -->
+                    <div id="teacher-grading-area" class="hidden border-t-2 border-indigo-100 pt-5 mt-2">
+                        <h3 class="font-bold text-slate-700 mb-3"><i class="fa-solid fa-gavel text-indigo-500 mr-2"></i>Rubrik Penilaian Guru</h3>
+                        
+                        <div class="bg-slate-50 p-4 rounded-xl border mb-4 text-sm text-slate-700">
+                            <strong class="block mb-1 text-slate-800">Indikator Jawaban:</strong>
+                            <ul id="oral-indicators" class="list-disc pl-5 space-y-1 mb-3 text-slate-600"></ul>
+                            <strong class="block mb-1 text-slate-800">Referensi / Konsep Benar:</strong>
+                            <p id="oral-reference" class="italic text-slate-600"></p>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3">
+                            <button onclick="selectOralGrade(100)" id="btn-grade-100" class="grade-btn border-2 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 py-3 rounded-xl font-bold flex flex-col items-center gap-1 transition">
+                                <span class="text-xl">100</span>
+                                <span class="text-xs font-medium">Tepat / Lengkap</span>
+                            </button>
+                            <button onclick="selectOralGrade(50)" id="btn-grade-50" class="grade-btn border-2 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 py-3 rounded-xl font-bold flex flex-col items-center gap-1 transition">
+                                <span class="text-xl">50</span>
+                                <span class="text-xs font-medium">Sebagian Tepat</span>
+                            </button>
+                            <button onclick="selectOralGrade(0)" id="btn-grade-0" class="grade-btn border-2 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 py-3 rounded-xl font-bold flex flex-col items-center gap-1 transition">
+                                <span class="text-xl">0</span>
+                                <span class="text-xs font-medium">Belum Tepat</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="p-5 border-t bg-slate-50 rounded-b-2xl flex justify-end gap-3">
+                <button onclick="closeModal('question-modal')" class="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200 transition">Batal</button>
+                <button id="btn-confirm-mc" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition shadow-md">Konfirmasi Jawaban</button>
+                <button id="btn-confirm-oral" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed" disabled>Simpan Nilai</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Feedback (Pembahasan) -->
+    <div id="feedback-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg text-center overflow-hidden">
+            <div id="feedback-header" class="py-6 px-4 bg-green-500 text-white">
+                <i id="feedback-icon" class="fa-solid fa-circle-check text-6xl mb-3"></i>
+                <h2 id="feedback-title" class="text-2xl font-bold">Tepat Sekali!</h2>
+                <p id="feedback-points" class="font-medium mt-1">+100 Poin</p>
+            </div>
+            <div class="p-6 bg-slate-50">
+                <h3 class="font-bold text-slate-700 mb-2 text-left text-sm uppercase tracking-wider">Pembahasan:</h3>
+                <p id="feedback-explanation" class="text-slate-600 text-left text-sm md:text-base leading-relaxed bg-white p-4 rounded-xl border shadow-sm"></p>
+                <button onclick="closeModal('feedback-modal')" class="mt-6 w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl transition shadow-md">
+                    Lanjut Bermain <i class="fa-solid fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Hasil Akhir (Endgame) -->
+    <div id="endgame-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden text-center transform scale-95 transition-transform duration-500" id="endgame-content">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white">
+                <i class="fa-solid fa-trophy text-6xl text-yellow-300 mb-4 drop-shadow-lg"></i>
+                <h2 class="text-4xl font-extrabold tracking-tight mb-2">BounceQuiz Selesai!</h2>
+                <p class="text-blue-100 text-lg">Semua 30 siswa telah menyelesaikan asesmen.</p>
+            </div>
+            <div class="p-8">
+                <div class="flex justify-center mb-6">
+                    <div class="relative w-40 h-40 flex items-center justify-center">
+                        <svg class="w-full h-full transform -rotate-90 absolute" viewBox="0 0 36 36">
+                            <path class="text-slate-200" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path id="final-score-ring" class="text-green-500" stroke-dasharray="0, 100" stroke-width="3" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <div class="flex flex-col items-center text-center z-10">
+                            <span class="text-4xl font-black text-slate-800" id="final-score-text">0</span>
+                            <span class="text-xs font-bold text-slate-500 uppercase">Nilai Akhir</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-8 text-left">
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <p class="text-sm text-blue-600 font-semibold">Total Poin</p>
+                        <p class="text-2xl font-bold text-blue-900" id="final-total-points">0 / 3000</p>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-xl border border-green-100">
+                        <p class="text-sm text-green-600 font-semibold">Jawaban Tepat (100pt)</p>
+                        <p class="text-2xl font-bold text-green-900" id="final-correct">0</p>
+                    </div>
+                    <div class="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                        <p class="text-sm text-amber-600 font-semibold">Sebagian Tepat (50pt)</p>
+                        <p class="text-2xl font-bold text-amber-900" id="final-partial">0</p>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                        <p class="text-sm text-red-600 font-semibold">Salah (0pt)</p>
+                        <p class="text-2xl font-bold text-red-900" id="final-incorrect">0</p>
+                    </div>
+                </div>
+
+                <button onclick="resetGame()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:-translate-y-1 text-lg flex justify-center items-center gap-3">
+                    <i class="fa-solid fa-rotate-right"></i> Main Lagi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data Soal Lengkap: 30 Soal (21 MC, 9 Oral) untuk Fisika X: Pengukuran
+        const quizData = [
+            // 21 Multiple Choice
+            {
+                id: 1, type: "MC",
+                q: "Di bawah ini, manakah kelompok besaran yang semuanya merupakan besaran pokok dalam Sistem Internasional (SI)?",
+                options: ["Panjang, Massa, Energi", "Massa, Waktu, Kuat Arus", "Gaya, Kecepatan, Suhu", "Waktu, Momentum, Percepatan"],
+                ans: 1, // B
+                explanation: "Besaran pokok dalam SI meliputi: Panjang, Massa, Waktu, Suhu, Kuat Arus, Intensitas Cahaya, dan Jumlah Zat."
+            },
+            {
+                id: 2, type: "MC",
+                q: "Sebuah balok diukur ketebalannya menggunakan mikrometer sekrup. Skala utama menunjuk 4,5 mm dan skala nonius menunjuk angka 32. Berapakah hasil pengukuran tersebut?",
+                options: ["4,82 mm", "4,532 mm", "4,32 mm", "7,7 mm"],
+                ans: 0, // A
+                explanation: "Hasil = Skala Utama + (Skala Nonius × 0,01 mm) = 4,5 mm + (32 × 0,01 mm) = 4,5 + 0,32 = 4,82 mm."
+            },
+            {
+                id: 3, type: "MC",
+                q: "Tentukan jumlah angka penting dari bilangan hasil pengukuran 0,004050 kg!",
+                options: ["3 angka penting", "4 angka penting", "6 angka penting", "7 angka penting"],
+                ans: 1, // B
+                explanation: "Angka nol di depan angka bukan nol bukan angka penting. Angka nol di antara dan di akhir (setelah koma) adalah angka penting. Jadi, 4, 0, 5, 0 (4 angka penting)."
+            },
+            {
+                id: 4, type: "MC",
+                q: "Berdasarkan aturan angka penting, hasil penjumlahan 12,45 cm + 3,2 cm adalah...",
+                options: ["15,65 cm", "15,7 cm", "15,6 cm", "16 cm"],
+                ans: 1, // B
+                explanation: "12,45 (2 angka di belakang koma) + 3,2 (1 angka di belakang koma) = 15,65. Hasil akhir hanya boleh mengandung satu angka taksiran (paling sedikit di belakang koma). Dibulatkan menjadi 15,7 cm."
+            },
+            {
+                id: 5, type: "MC",
+                q: "Kecepatan cahaya di ruang hampa adalah 300.000.000 m/s. Penulisan notasi ilmiah yang tepat adalah...",
+                options: ["30 × 10^7 m/s", "3 × 10^8 m/s", "0,3 × 10^9 m/s", "3 × 10^7 m/s"],
+                ans: 1, // B
+                explanation: "Notasi ilmiah memiliki format a × 10^n, dengan 1 ≤ a < 10. 300.000.000 digeser komanya 8 kali ke kiri menjadi 3 × 10^8."
+            },
+            {
+                id: 6, type: "MC",
+                q: "Dimensi dari besaran Gaya (F = m.a) adalah...",
+                options: ["[M][L][T]^-1", "[M][L]^-1[T]^-2", "[M][L]^2[T]^-2", "[M][L][T]^-2"],
+                ans: 3, // D
+                explanation: "Gaya = Massa × Percepatan. Dimensi massa = [M], Percepatan = [L][T]^-2. Maka gaya = [M][L][T]^-2."
+            },
+            {
+                id: 7, type: "MC",
+                q: "Alat ukur yang paling tepat digunakan untuk mengukur diameter dalam sebuah cincin dengan tingkat ketelitian 0,1 mm adalah...",
+                options: ["Mistar", "Mikrometer sekrup", "Jangka sorong", "Pita ukur"],
+                ans: 2, // C
+                explanation: "Jangka sorong memiliki rahang atas yang didesain khusus untuk mengukur diameter dalam. Ketelitiannya umumnya 0,1 mm, 0,05 mm, atau 0,02 mm."
+            },
+            {
+                id: 8, type: "MC",
+                q: "Perkalian antara 2,5 m dan 3,14 m menurut aturan angka penting akan menghasilkan...",
+                options: ["7,85 m²", "7,8 m²", "7,9 m²", "8 m²"],
+                ans: 2, // C
+                explanation: "2,5 (2 AP) × 3,14 (3 AP) = 7,85. Hasil perkalian harus memiliki AP sebanyak AP paling sedikit dalam perhitungan (2 AP). 7,85 dibulatkan jadi 7,9 m² (aturan genap/ganjil atau pembulatan standar)."
+            },
+            {
+                id: 9, type: "MC",
+                q: "Massa elektron diperkirakan 0,000 000 000 000 000 000 000 000 000 000 911 kg. Notasi ilmiah yang benar adalah...",
+                options: ["9,11 × 10^-31 kg", "91,1 × 10^-32 kg", "0,911 × 10^-30 kg", "9,11 × 10^31 kg"],
+                ans: 0, // A
+                explanation: "Hitung pergeseran koma ke kanan hingga mendapatkan angka 9,11 (antara 1-10). Komanya bergeser sebanyak 31 kali ke kanan, sehingga eksponennya negatif 31."
+            },
+            {
+                id: 10, type: "MC",
+                q: "Satuan Sistem Internasional (SI) untuk intensitas cahaya adalah...",
+                options: ["Ampere", "Candela", "Kelvin", "Mol"],
+                ans: 1, // B
+                explanation: "Ampere untuk kuat arus, Kelvin untuk suhu, Mol untuk jumlah zat, Candela untuk intensitas cahaya."
+            },
+            {
+                id: 11, type: "MC",
+                q: "Besaran turunan Usaha diturunkan dari besaran pokok...",
+                options: ["Massa, panjang, waktu", "Massa, waktu, suhu", "Panjang, waktu, kuat arus", "Massa, panjang, suhu"],
+                ans: 0, // A
+                explanation: "Usaha (W) = Gaya × Jarak = (Massa × Percepatan) × Jarak. Jadi unsur besaran pokoknya adalah massa, panjang, dan waktu ([M][L]^2[T]^-2)."
+            },
+            {
+                id: 12, type: "MC",
+                q: "Sebuah mobil melaju dengan kecepatan 72 km/jam. Nilai ini setara dengan ... dalam satuan SI.",
+                options: ["10 m/s", "15 m/s", "20 m/s", "25 m/s"],
+                ans: 2, // C
+                explanation: "72 km/jam = (72 × 1000 m) / 3600 s = 72000 / 3600 = 20 m/s."
+            },
+            {
+                id: 13, type: "MC",
+                q: "Kesalahan pengamatan karena posisi mata tidak tegak lurus dengan jarum penunjuk skala alat ukur disebut...",
+                options: ["Kesalahan sistematis", "Kesalahan acak", "Kesalahan paralaks", "Kesalahan kalibrasi"],
+                ans: 2, // C
+                explanation: "Kesalahan paralaks terjadi akibat kesalahan sudut pandang pengamat (mata tidak tegak lurus dengan skala)."
+            },
+            {
+                id: 14, type: "MC",
+                q: "Besaran fisika yang hanya memiliki nilai (besar) saja tanpa arah disebut...",
+                options: ["Besaran pokok", "Besaran turunan", "Besaran skalar", "Besaran vektor"],
+                ans: 2, // C
+                explanation: "Besaran fisika dibagi dua berdasarkan arahnya: Vektor (memiliki nilai dan arah) dan Skalar (hanya memiliki nilai)."
+            },
+            {
+                id: 15, type: "MC",
+                q: "Besaran yang dimensinya sama dengan dimensi Energi Potensial adalah...",
+                options: ["Gaya", "Momentum", "Usaha", "Daya"],
+                ans: 2, // C
+                explanation: "Energi potensial, energi kinetik, dan usaha memiliki satuan yang sama yaitu Joule, sehingga dimensinya juga sama yaitu [M][L]^2[T]^-2."
+            },
+            {
+                id: 16, type: "MC",
+                q: "Berapa banyak angka penting pada bilangan 1,000?",
+                options: ["1", "2", "3", "4"],
+                ans: 3, // D
+                explanation: "Angka nol di belakang tanda desimal dan di belakang angka bukan nol adalah angka penting. Jadi ada 4 angka penting."
+            },
+            {
+                id: 17, type: "MC",
+                q: "Ketelitian ukur mikrometer sekrup adalah...",
+                options: ["0,1 cm", "0,01 cm", "0,1 mm", "0,01 mm"],
+                ans: 3, // D
+                explanation: "Mikrometer sekrup memiliki skala utama terkecil 0,5 mm dan skala nonius 50 bagian. 0,5/50 = 0,01 mm."
+            },
+            {
+                id: 18, type: "MC",
+                q: "Konsistensi kedekatan hasil-hasil pengukuran secara berulang satu sama lain, mengindikasikan tingkat ... alat ukur.",
+                options: ["Akurasi", "Presisi", "Sensitivitas", "Resolusi"],
+                ans: 1, // B
+                explanation: "Presisi (ketelitian) berhubungan dengan seberapa dekat hasil ukur satu sama lain saat diulang. Akurasi (ketepatan) berhubungan dengan kedekatan dengan nilai sebenarnya."
+            },
+            {
+                id: 19, type: "MC",
+                q: "Jika panjang sebuah meja terukur 1,50 m dan lebarnya 1,20 m, luas meja menurut aturan angka penting adalah...",
+                options: ["1,8 m²", "1,80 m²", "1,800 m²", "2 m²"],
+                ans: 1, // B
+                explanation: "1,50 (3 AP) × 1,20 (3 AP) = 1,8. Berdasarkan aturan, hasil harus 3 AP, sehingga ditulis 1,80 m²."
+            },
+            {
+                id: 20, type: "MC",
+                q: "Besaran fisika Tekanan (P = F/A) mempunyai dimensi...",
+                options: ["[M][L][T]^-2", "[M][L]^-1[T]^-2", "[M][L]^2[T]^-3", "[M][L]^-2[T]^-1"],
+                ans: 1, // B
+                explanation: "P = Gaya/Luas = ([M][L][T]^-2) / [L]^2 = [M][L]^-1[T]^-2."
+            },
+            {
+                id: 21, type: "MC",
+                q: "Ketidakpastian mutlak pada pengukuran tunggal menggunakan alat berskala non digital umumnya diambil sebesar...",
+                options: ["Sama dengan skala terkecil (NST)", "Setengah dari skala terkecil (1/2 NST)", "Seperempat skala terkecil", "Satu perseratus skala utama"],
+                ans: 1, // B
+                explanation: "Secara umum pada alat ukur analog (seperti mistar), ketidakpastian mutlak (Δx) pengukuran tunggal adalah ½ × NST (Nilai Skala Terkecil)."
+            },
+            
+            // 9 Oral Answer
+            {
+                id: 22, type: "Oral",
+                q: "Jelaskan dengan bahasamu sendiri perbedaan antara besaran pokok dan besaran turunan, serta sebutkan minimal masing-masing satu contoh!",
+                indicators: [
+                    "Menyebutkan bahwa besaran pokok telah ditetapkan dan tidak diturunkan dari besaran lain.",
+                    "Menyebutkan bahwa besaran turunan tersusun/diturunkan dari besaran pokok.",
+                    "Memberikan contoh yang valid (misal: pokok=massa, turunan=kecepatan)."
+                ],
+                explanation: "Besaran pokok adalah besaran dasar yang satuannya telah didefinisikan secara internasional (contoh: massa, panjang). Besaran turunan diturunkan dari perpaduan besaran pokok (contoh: luas, kecepatan)."
+            },
+            {
+                id: 23, type: "Oral",
+                q: "Mengapa penulisan angka penting sangat ditekankan pada pelaporan hasil pengukuran dalam praktikum fisika? Jelaskan alasannya!",
+                indicators: [
+                    "Menyinggung soal ketelitian/kemampuan batas alat ukur.",
+                    "Menjelaskan bahwa angka penting mencegah kesimpulan tingkat presisi yang salah (lebih tinggi dari yang sebenarnya).",
+                    "Membedakan antara angka matematis murni dengan angka hasil ukur."
+                ],
+                explanation: "Angka penting digunakan karena hasil ukur fisika selalu memiliki ketidakpastian/keterbatasan dari alat ukur. Penulisan AP yang benar menunjukkan seberapa presisi pengukuran tersebut dilakukan dan mencegah ilusi kepastian yang tidak nyata."
+            },
+            {
+                id: 24, type: "Oral",
+                q: "Apa yang dimaksud dengan kesalahan sistematis dalam pengukuran? Sebutkan setidaknya dua contoh penyebabnya!",
+                indicators: [
+                    "Mendefinisikan kesalahan sistematis sebagai kesalahan yang teratur/konsisten bergeser ke satu arah.",
+                    "Menyebutkan contoh 1 (misal: kesalahan kalibrasi nol/zero error).",
+                    "Menyebutkan contoh 2 (misal: alat yang rusak, pelebaran skala karena suhu)."
+                ],
+                explanation: "Kesalahan sistematis adalah penyimpangan yang cenderung menggeser semua hasil ke arah yang sama (misal selalu lebih besar). Contohnya: kesalahan titik nol alat (zero error), komponen alat yang aus, atau kesalahan paralaks yang konsisten."
+            },
+            {
+                id: 25, type: "Oral",
+                q: "Jelaskan langkah-langkah dalam membaca hasil pengukuran pada jangka sorong!",
+                indicators: [
+                    "Melihat angka pada skala utama yang berada tepat sebelum angka nol skala nonius.",
+                    "Mencari garis pada skala nonius yang berimpit tegak lurus dengan garis di skala utama.",
+                    "Mengalikan angka nonius dengan tingkat ketelitian (misal 0,01 cm) lalu menjumlahkannya dengan skala utama."
+                ],
+                explanation: "Cara baca: 1. Baca skala utama yang persis sebelum angka 0 nonius. 2. Cari garis skala nonius yang paling lurus berimpit dengan garis utama. 3. Kalikan nilai nonius dengan ketelitian alat, lalu tambahkan ke pembacaan utama."
+            },
+            {
+                id: 26, type: "Oral",
+                q: "Terdapat perbedaan konsep antara Akurasi (ketepatan) dan Presisi (ketelitian). Jelaskan perbedaan kedua istilah tersebut dalam konteks pengukuran!",
+                indicators: [
+                    "Akurasi: Seberapa dekat hasil ukur dengan nilai sebenarnya (true value).",
+                    "Presisi: Seberapa dekat hasil-hasil ukur satu sama lain apabila pengukuran diulang (konsistensi).",
+                    "Memberikan ilustrasi jika diperlukan (seperti anak panah di papan target)."
+                ],
+                explanation: "Akurasi mengukur kebenaran (dekat ke target utama). Presisi mengukur konsistensi alat atau pengamat (hasil ukur berulang ngumpul di titik yang sama meski belum tentu tepat di target)."
+            },
+            {
+                id: 27, type: "Oral",
+                q: "Buktikan secara dimensi bahwa besaran Usaha (W) memiliki dimensi yang sama dengan Energi Kinetik (Ek = 1/2 m.v²)!",
+                indicators: [
+                    "Menuliskan dimensi W = F.s = [M][L]²[T]⁻².",
+                    "Menuliskan dimensi massa = [M], kecepatan = [L][T]⁻¹.",
+                    "Menghitung dimensi Ek = [M] . ([L][T]⁻¹)² = [M][L]²[T]⁻², lalu menyimpulkan bahwa keduanya sama."
+                ],
+                explanation: "Dimensi Usaha = [M][L]²[T]⁻². Rumus Ek = ½ m.v². (Angka ½ tidak berdimensi). Massa [M], Kecepatan [L][T]⁻¹. Dikuadratkan menjadi [L]²[T]⁻². Dikalikan massa menjadi [M][L]²[T]⁻². Terbukti sama."
+            },
+            {
+                id: 28, type: "Oral",
+                q: "Jelaskan prosedur sederhana untuk melakukan kalibrasi titik nol pada mikrometer sekrup sebelum digunakan!",
+                indicators: [
+                    "Memutar bidal (thimble) sampai rahang tetap dan rahang geser bersentuhan lembut (gunakan ratchet).",
+                    "Melihat apakah garis nol pada skala nonius sejajar persis dengan garis horizontal di skala utama.",
+                    "Jika tidak sejajar, putar selubung luar menggunakan kunci pas khusus sampai garis sejajar."
+                ],
+                explanation: "Kalibrasi dilakukan dengan merapatkan rahang (tanpa benda). Pastikan garis horizontal skala utama lurus dengan angka nol skala putar (nonius). Bila bergeser, atur kuncian selubung hingga garis berimpit sempurna."
+            },
+            {
+                id: 29, type: "Oral",
+                q: "Mengapa besaran sudut, meskipun memiliki satuan seperti Radian atau Derajat, sering disebut sebagai besaran tak berdimensi?",
+                indicators: [
+                    "Menyebutkan rumus sudut dalam radian (Panjang busur dibagi jari-jari).",
+                    "Menunjukkan bahwa perbandingan panjang dibagi panjang akan saling meniadakan dimensinya ([L]/[L] = 1).",
+                    "Menyimpulkan bahwa besaran tersebut rasio fisis sehingga tak punya dimensi."
+                ],
+                explanation: "Sudut bidang datar (radian) didapat dari perbandingan panjang busur lingkaran (s) dengan jari-jari (r). Karena dimensinya [L]/[L], dimensinya saling menghilangkan, menjadikannya tak berdimensi."
+            },
+            {
+                id: 30, type: "Oral",
+                q: "Jelaskan apa yang dimaksud dengan ketidakpastian relatif dan mengapa ketidakpastian ini lebih sering digunakan untuk mengukur mutu suatu alat dibandingkan ketidakpastian mutlak?",
+                indicators: [
+                    "Mendefinisikan bahwa ketidakpastian relatif adalah (ketidakpastian mutlak / hasil pengukuran) x 100%.",
+                    "Menjelaskan bahwa nilai ini menunjukkan persentase kesalahan.",
+                    "Menyimpulkan bahwa semakin kecil % relatif, semakin presisi/bermutu pengukuran tersebut (tanpa peduli besar/kecil objek ukur)."
+                ],
+                explanation: "Ketidakpastian relatif (Δx/x * 100%) menggambarkan tingkat presisi secara proporsional. Kesalahan 1mm dalam mengukur meja lebih baik (relatif kecil) dibanding kesalahan 1mm mengukur semut. Itulah sebabnya ini menjadi tolak ukur mutu."
+            }
+        ];
+
+        const BALL_COUNT = 30;
+        let balls = [];
+        let animationFrameId;
+        
+        let state = {
+            total: BALL_COUNT,
+            answered: 0,
+            correct: 0,
+            partial: 0,
+            incorrect: 0,
+            scorePoints: 0,
+            currentQuestionId: null,
+            ballData: {}, 
+            isPaused: false,
+            soundEnabled: false
+        };
+
+        const container = document.getElementById('game-container');
+        const mcContainer = document.getElementById('mc-container');
+        const oralContainer = document.getElementById('oral-container');
+        let selectedOptionIdx = null;
+
+        // Modul Efek Suara (Tone.js)
+        const SoundFX = {
+            synth: null,
+            polySynth: null,
+            init: async function() {
+                if (this.synth) return;
+                await Tone.start();
+                this.synth = new Tone.Synth().toDestination();
+                this.polySynth = new Tone.PolySynth().toDestination();
+                this.synth.volume.value = -5;
+                this.polySynth.volume.value = -5;
+            },
+            playClick: function() {
+                if(!state.soundEnabled || !this.synth) return;
+                this.synth.triggerAttackRelease("C5", "32n");
+            },
+            playCorrect: function() {
+                if(!state.soundEnabled || !this.polySynth) return;
+                this.polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n");
+            },
+            playPartial: function() {
+                if(!state.soundEnabled || !this.polySynth) return;
+                this.polySynth.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+            },
+            playIncorrect: function() {
+                if(!state.soundEnabled || !this.synth) return;
+                this.synth.triggerAttackRelease("C3", "8n");
+                setTimeout(() => { if(this.synth) this.synth.triggerAttackRelease("G2", "4n"); }, 150);
+            },
+            playShuffle: function() {
+                if(!state.soundEnabled || !this.synth) return;
+                let time = Tone.now();
+                this.synth.triggerAttackRelease("C4", "32n", time);
+                this.synth.triggerAttackRelease("E4", "32n", time + 0.1);
+                this.synth.triggerAttackRelease("G4", "32n", time + 0.2);
+            },
+            playWin: function() {
+                if(!state.soundEnabled || !this.polySynth) return;
+                let time = Tone.now();
+                this.polySynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", time);
+                this.polySynth.triggerAttackRelease(["F4", "A4", "C5"], "8n", time + 0.2);
+                this.polySynth.triggerAttackRelease(["G4", "B4", "D5"], "8n", time + 0.4);
+                this.polySynth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "2n", time + 0.6);
+            }
+        };
+
+        document.getElementById('btn-toggle-sound').addEventListener('click', async function() {
+            if (!state.soundEnabled) {
+                await SoundFX.init();
+                state.soundEnabled = true;
+                this.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+                this.classList.replace('text-slate-400', 'text-green-600');
+                SoundFX.playClick();
+            } else {
+                state.soundEnabled = false;
+                this.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+                this.classList.replace('text-green-600', 'text-slate-400');
+            }
+        });
+
+        document.getElementById('btn-toggle-play').addEventListener('click', function() {
+            state.isPaused = !state.isPaused;
+            if(state.isPaused) {
+                this.innerHTML = '<i class="fa-solid fa-play"></i>';
+                this.classList.add('bg-blue-100', 'text-blue-700');
+            } else {
+                this.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                this.classList.remove('bg-blue-100', 'text-blue-700');
+            }
+            SoundFX.playClick();
+        });
+
+        document.getElementById('btn-shuffle').addEventListener('click', function() {
+            SoundFX.playShuffle();
+            const containerRect = container.getBoundingClientRect();
+            balls.forEach(ball => {
+                ball.x = Math.random() * (containerRect.width - ball.size);
+                ball.y = Math.random() * (containerRect.height - ball.size);
+                let vx = (Math.random() - 0.5) * 6;
+                let vy = (Math.random() - 0.5) * 6;
+                ball.vx = vx === 0 ? 1 : vx;
+                ball.vy = vy === 0 ? 1 : vy;
+            });
+        });
+
+        document.getElementById('btn-fullscreen').addEventListener('click', function() {
+            SoundFX.playClick();
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+                this.innerHTML = '<i class="fa-solid fa-compress"></i>';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    this.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                }
+            }
+        });
+
+        document.getElementById('btn-restart-anytime').addEventListener('click', function() {
+            SoundFX.playClick();
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-modal').firstElementChild.classList.add('modal-enter');
+        });
+
+        document.getElementById('btn-confirm-restart').addEventListener('click', function() {
+            SoundFX.playClick();
+            closeModal('confirm-modal');
+            resetGame();
+        });
+
+        function initGame() {
+            balls = [];
+            container.innerHTML = '';
+            selectedOptionIdx = null;
+            
+            const currentSoundState = state.soundEnabled || false;
+            
+            state = {
+                total: BALL_COUNT,
+                answered: 0,
+                correct: 0,
+                partial: 0,
+                incorrect: 0,
+                scorePoints: 0,
+                currentQuestionId: null,
+                ballData: {},
+                isPaused: false,
+                soundEnabled: currentSoundState
+            };
+
+            const playBtn = document.getElementById('btn-toggle-play');
+            if(playBtn) {
+                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                playBtn.classList.remove('bg-blue-100', 'text-blue-700');
+            }
+
+            for(let i = 1; i <= BALL_COUNT; i++) {
+                state.ballData[i] = {
+                    status: 'unanswered', 
+                    points: 0
+                };
+            }
+
+            const containerRect = container.getBoundingClientRect();
+            
+            for(let i = 0; i < BALL_COUNT; i++) {
+                const size = 45; 
+                let x = Math.random() * (containerRect.width - size);
+                let y = Math.random() * (containerRect.height - size);
+                let vx = (Math.random() - 0.5) * 4;
+                let vy = (Math.random() - 0.5) * 4;
+                
+                if(vx === 0) vx = 1;
+                if(vy === 0) vy = 1;
+
+                const ballEl = document.createElement('div');
+                ballEl.className = 'ball status-unanswered';
+                ballEl.style.width = `${size}px`;
+                ballEl.style.height = `${size}px`;
+                ballEl.innerText = i + 1; 
+                ballEl.id = `ball-${i+1}`;
+                
+                ballEl.addEventListener('click', () => handleBallClick(i + 1));
+                
+                container.appendChild(ballEl);
+                
+                balls.push({
+                    id: i + 1, el: ballEl,
+                    x: x, y: y,
+                    vx: vx, vy: vy,
+                    size: size
+                });
+            }
+
+            updateStatsUI();
+            updateTeacherPanel();
+
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function gameLoop() {
+            const rect = container.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+
+            if (!state.isPaused) {
+                balls.forEach(ball => {
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+
+                    if(ball.x <= 0) { ball.x = 0; ball.vx *= -1; } 
+                    else if (ball.x >= width - ball.size) { ball.x = width - ball.size; ball.vx *= -1; }
+
+                    if(ball.y <= 0) { ball.y = 0; ball.vy *= -1; } 
+                    else if (ball.y >= height - ball.size) { ball.y = height - ball.size; ball.vy *= -1; }
+
+                    ball.el.style.transform = `translate3d(${ball.x}px, ${ball.y}px, 0)`;
+                });
+            } else {
+                balls.forEach(ball => { ball.el.style.transform = `translate3d(${ball.x}px, ${ball.y}px, 0)`; });
+            }
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener('resize', () => {
+            if(!container) return;
+            const rect = container.getBoundingClientRect();
+            balls.forEach(ball => {
+                if(ball.x > rect.width - ball.size) ball.x = rect.width - ball.size;
+                if(ball.y > rect.height - ball.size) ball.y = rect.height - ball.size;
+            });
+        });
+
+        function handleBallClick(id) {
+            SoundFX.playClick();
+            const bData = state.ballData[id];
+            const questionData = quizData.find(q => q.id === id);
+            
+            if(!questionData) return;
+            if(bData.status !== 'unanswered') {
+                showFeedbackOnly(questionData, bData.status, bData.points);
+                return;
+            }
+
+            state.currentQuestionId = id;
+            openQuestionModal(questionData);
+        }
+
+        function openQuestionModal(qData) {
+            document.getElementById('modal-ball-number').innerText = qData.id;
+            document.getElementById('modal-type-badge').innerText = qData.type === 'MC' ? 'Multiple Choice' : 'Oral Answer';
+            document.getElementById('modal-question-text').innerText = qData.q;
+            
+            mcContainer.classList.add('hidden');
+            oralContainer.classList.add('hidden');
+            document.getElementById('btn-confirm-mc').classList.add('hidden');
+            document.getElementById('btn-confirm-oral').classList.add('hidden');
+            
+            if(qData.type === 'MC') {
+                mcContainer.classList.remove('hidden');
+                mcContainer.innerHTML = '';
+                selectedOptionIdx = null;
+                
+                qData.options.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition font-medium text-slate-700 bg-white shadow-sm flex items-center gap-3';
+                    const letter = String.fromCharCode(65 + idx);
+                    btn.innerHTML = `<span class="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold font-mono">${letter}</span> <span>${opt}</span>`;
+                    btn.onclick = () => selectMCOption(idx, btn);
+                    mcContainer.appendChild(btn);
+                });
+                const confirmBtn = document.getElementById('btn-confirm-mc');
+                confirmBtn.classList.remove('hidden');
+                confirmBtn.disabled = true;
+                confirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } 
+            else {
+                oralContainer.classList.remove('hidden');
+                document.getElementById('oral-student-notes').value = '';
+                document.getElementById('teacher-grading-area').classList.add('hidden');
+                document.getElementById('btn-open-teacher-grading').classList.remove('hidden');
+                
+                const indContainer = document.getElementById('oral-indicators');
+                indContainer.innerHTML = '';
+                qData.indicators.forEach(ind => {
+                    const li = document.createElement('li');
+                    li.innerText = ind;
+                    indContainer.appendChild(li);
+                });
+                document.getElementById('oral-reference').innerText = qData.explanation;
+                
+                document.querySelectorAll('.grade-btn').forEach(btn => btn.classList.remove('ring-4', 'ring-offset-2', 'ring-indigo-400', 'scale-105'));
+                
+                const confirmBtn = document.getElementById('btn-confirm-oral');
+                confirmBtn.classList.remove('hidden');
+                confirmBtn.disabled = true;
+                window.tempOralGrade = null;
+            }
+
+            document.getElementById('question-modal').classList.remove('hidden');
+            document.getElementById('question-modal').firstElementChild.classList.add('modal-enter');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).firstElementChild.classList.remove('modal-enter');
+        }
+
+        function selectMCOption(idx, btnElement) {
+            SoundFX.playClick();
+            selectedOptionIdx = idx;
+            Array.from(mcContainer.children).forEach(btn => {
+                btn.classList.remove('border-blue-500', 'bg-blue-50');
+                btn.classList.add('border-slate-200', 'bg-white');
+                btn.firstElementChild.classList.remove('bg-blue-500', 'text-white');
+                btn.firstElementChild.classList.add('bg-slate-100', 'text-slate-600');
+            });
+            btnElement.classList.remove('border-slate-200', 'bg-white');
+            btnElement.classList.add('border-blue-500', 'bg-blue-50');
+            btnElement.firstElementChild.classList.remove('bg-slate-100', 'text-slate-600');
+            btnElement.firstElementChild.classList.add('bg-blue-500', 'text-white');
+            
+            const confirmBtn = document.getElementById('btn-confirm-mc');
+            confirmBtn.disabled = false;
+            confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        document.getElementById('btn-open-teacher-grading').addEventListener('click', function() {
+            this.classList.add('hidden');
+            document.getElementById('teacher-grading-area').classList.remove('hidden');
+        });
+
+        function selectOralGrade(grade) {
+            SoundFX.playClick();
+            window.tempOralGrade = grade;
+            const btns = {
+                100: document.getElementById('btn-grade-100'),
+                50: document.getElementById('btn-grade-50'),
+                0: document.getElementById('btn-grade-0')
+            };
+            Object.values(btns).forEach(btn => btn.classList.remove('ring-4', 'ring-offset-2', 'ring-indigo-400', 'scale-105'));
+            btns[grade].classList.add('ring-4', 'ring-offset-2', 'ring-indigo-400', 'scale-105');
+            
+            const confirmBtn = document.getElementById('btn-confirm-oral');
+            confirmBtn.disabled = false;
+            confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        document.getElementById('btn-confirm-mc').addEventListener('click', () => {
+            if(selectedOptionIdx === null) return;
+            const qData = quizData.find(q => q.id === state.currentQuestionId);
+            processAnswer(qData.id, (selectedOptionIdx === qData.ans) ? 100 : 0);
+        });
+
+        document.getElementById('btn-confirm-oral').addEventListener('click', () => {
+            if(window.tempOralGrade === null) return;
+            processAnswer(state.currentQuestionId, window.tempOralGrade);
+        });
+
+        function processAnswer(qId, points) {
+            closeModal('question-modal');
+            const bData = state.ballData[qId];
+            if(bData.status !== 'unanswered') return; 
+            
+            state.answered++;
+            state.scorePoints += points;
+            bData.points = points;
+            
+            let statusStr = '';
+            if(points === 100) { state.correct++; statusStr = 'correct'; SoundFX.playCorrect(); } 
+            else if (points === 50) { state.partial++; statusStr = 'partial'; SoundFX.playPartial(); } 
+            else { state.incorrect++; statusStr = 'incorrect'; SoundFX.playIncorrect(); }
+            
+            bData.status = statusStr;
+            const ballEl = document.getElementById(`ball-${qId}`);
+            ballEl.className = `ball status-${statusStr}`;
+            
+            if(statusStr === 'correct') ballEl.innerHTML = `<i class="fa-solid fa-check text-white"></i>`;
+            else if(statusStr === 'partial') ballEl.innerHTML = `<i class="fa-solid fa-check-double text-white text-xs"></i>`;
+            else ballEl.innerHTML = `<i class="fa-solid fa-xmark text-white"></i>`;
+
+            updateStatsUI();
+            updateTeacherPanel();
+
+            const qData = quizData.find(q => q.id === qId);
+            showFeedbackModal(statusStr, points, qData.explanation);
+            
+            if(state.answered === state.total) {
+                setTimeout(showEndGame, 2000);
+            }
+        }
+
+        function showFeedbackModal(status, points, explanation) {
+            const modal = document.getElementById('feedback-modal');
+            const header = document.getElementById('feedback-header');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const pts = document.getElementById('feedback-points');
+            
+            header.className = 'py-6 px-4 text-white';
+            if(status === 'correct') {
+                header.classList.add('bg-green-500');
+                icon.className = 'fa-solid fa-circle-check text-6xl mb-3';
+                title.innerText = 'Tepat Sekali!';
+                pts.innerText = `+${points} Poin`;
+            } else if (status === 'partial') {
+                header.classList.add('bg-amber-500');
+                icon.className = 'fa-solid fa-circle-exclamation text-6xl mb-3';
+                title.innerText = 'Sebagian Tepat!';
+                pts.innerText = `+${points} Poin`;
+            } else {
+                header.classList.add('bg-red-500');
+                icon.className = 'fa-solid fa-circle-xmark text-6xl mb-3';
+                title.innerText = 'Belum Tepat';
+                pts.innerText = '0 Poin';
+            }
+            
+            document.getElementById('feedback-explanation').innerHTML = `<strong>Kunci / Referensi:</strong><br/>${explanation}`;
+            modal.classList.remove('hidden');
+            modal.firstElementChild.classList.add('modal-enter');
+        }
+
+        function showFeedbackOnly(qData, status, points) {
+            showFeedbackModal(status, points, qData.explanation);
+            document.getElementById('feedback-title').innerText = `Review Soal #${qData.id}`;
+        }
+
+        function updateStatsUI() {
+            const perc = Math.round((state.answered / state.total) * 100);
+            document.getElementById('stat-progress').innerText = `${state.answered} / ${state.total} (${perc}%)`;
+            document.getElementById('stat-correct').innerText = state.correct + state.partial; 
+            document.getElementById('stat-incorrect').innerText = state.incorrect;
+            document.getElementById('stat-score').innerText = state.scorePoints;
+        }
+
+        function updateTeacherPanel() {
+            const grid = document.getElementById('teacher-grid');
+            grid.innerHTML = '';
+            for(let i = 1; i <= state.total; i++) {
+                const stat = state.ballData[i].status;
+                const type = quizData.find(q=>q.id===i).type;
+                let bg = 'bg-blue-500 text-white';
+                let icon = type === 'MC' ? 'A' : '<i class="fa-solid fa-microphone text-[10px]"></i>';
+                
+                if(stat === 'correct') bg = 'bg-green-500 text-white shadow-inner';
+                else if(stat === 'partial') bg = 'bg-amber-500 text-white shadow-inner';
+                else if(stat === 'incorrect') bg = 'bg-red-500 text-white shadow-inner';
+                else bg = 'bg-slate-200 text-slate-400 border border-slate-300';
+                
+                const item = document.createElement('div');
+                item.className = `w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${bg} transition-all duration-300`;
+                item.innerHTML = `<span class="text-xs opacity-60 absolute -mt-4 ml-4">${i}</span> ${stat === 'unanswered' ? icon : (stat === 'correct' ? '✓' : (stat === 'partial' ? '½' : '✗'))}`;
+                grid.appendChild(item);
+            }
+        }
+
+        document.getElementById('toggle-teacher-panel').addEventListener('click', () => {
+            const panel = document.getElementById('teacher-panel');
+            panel.classList.remove('hidden');
+            setTimeout(() => { panel.classList.remove('translate-x-full'); }, 10);
+        });
+
+        document.getElementById('close-teacher-panel').addEventListener('click', () => {
+            const panel = document.getElementById('teacher-panel');
+            panel.classList.add('translate-x-full');
+            setTimeout(() => { panel.classList.add('hidden'); }, 300);
+        });
+
+        function showEndGame() {
+            closeModal('feedback-modal');
+            SoundFX.playWin();
+            
+            const maxPoints = state.total * 100;
+            const finalScore = Math.round((state.scorePoints / maxPoints) * 100);
+            
+            document.getElementById('final-score-text').innerText = finalScore;
+            document.getElementById('final-total-points').innerText = `${state.scorePoints} / ${maxPoints}`;
+            document.getElementById('final-correct').innerText = state.correct;
+            document.getElementById('final-partial').innerText = state.partial;
+            document.getElementById('final-incorrect').innerText = state.incorrect;
+            
+            const ring = document.getElementById('final-score-ring');
+            ring.setAttribute('stroke-dasharray', `${finalScore}, 100`);
+
+            const modal = document.getElementById('endgame-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('endgame-content').classList.remove('scale-95');
+                document.getElementById('endgame-content').classList.add('scale-100');
+            }, 10);
+        }
+
+        function resetGame() {
+            document.getElementById('endgame-modal').classList.add('hidden');
+            document.getElementById('endgame-content').classList.remove('scale-100');
+            document.getElementById('endgame-content').classList.add('scale-95');
+            initGame();
+        }
+
+        window.onload = function() {
+            initGame();
+        }
+    </script>
+</body>
+</html>
